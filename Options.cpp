@@ -146,9 +146,10 @@ Options::Options(int argc, char **argv) : Options() {
     po::notify(vm);
 
     //print help if option is set or no inputfile is given
-    if (vm.count("help") or (not vm.count("inputfile"))) {
-        std::cout << "USAGE: " << argv[0] << " [options] inputfile \n"
-                  << " where input is a graph in dimacs format.\n"  ;
+    if (vm.count("help") or (not vm.count("inputfile") or (not(zykov_color_default or assignment_default or partial_order_default)))) {
+        std::cout << "USAGE: " << argv[0] << " [options] inputfile --configuration\n"
+                  << "where input is a graph in dimacs format.\n"
+                  << "and configuration is one of --zykov-color, --assignment, --partial-order\n";
         if (vm.count("help")) {
             std::cout << general_options << "\n";
         }
@@ -217,10 +218,7 @@ Options::Options(int argc, char **argv) : Options() {
         encoding = PartialOrderEncoding;
     }
     else {
-        if (verbosity >= Normal) {
-            std::cout << "c Warning : No default configuration is chosen, the set options may not result in a good algorithm\n"
-                      << "c Warning : Consider choosing one of the options --zykov-color, --assignment or --partial-order\n";
-        }
+        throw po::error("Provide one of the following to specify the configuration:\n--zykov-color, --assignment, --partial-order");
     }
 
 

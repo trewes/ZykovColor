@@ -37,11 +37,9 @@ Additionally add ``-DCMAKE_BUILD_TYPE=Release`` to compile in optimized mode.
 ## Usage
 
 ```
-./IncSatGC inputfile [options]  
+./IncSatGC inputfile [options] --configuration 
 ```
-The input is a graph in dimacs format, 
-and a full list of available options can be displayed with ``-h, --help``.  
-The most relevant options are:
+Where ``--configuration`` is one of the following:
 - ``--zykov-color``
 - ``--assignment``
 - ``--partial-order``
