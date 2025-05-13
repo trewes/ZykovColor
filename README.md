@@ -6,7 +6,7 @@ presented in "A Customized SAT-based Solver for Graph Coloring".
 It is released under the MIT License (see LICENSE file).
 
 The focus is a custom external propagator using the IPASIR-UP interface [[1]](#1)
-to communicate information with the underlying SAT solver CaDiCal [[2]](#2).
+to communicate information with the underlying SAT solver CaDiCaL [[2]](#2).
 It works on top of a Zykov-based SAT encoding for the graph coloring problem
 and handles the transitivity constraints, can prune parts of the search with lower bounds,
 and uses further techniques detailed in the paper to yield a competitive algorithm.
@@ -16,13 +16,14 @@ which also allows solving the decision problems incrementally and re-using infor
 ## Dependencies and Installation
 
 
-We used version 2.1.2 of [CaDiCal](https://github.com/arminbiere/cadical), 
+We used version 2.1.2 of [CaDiCaL](https://github.com/arminbiere/cadical), 
 but any version with the same IPASIR-UP interface should work.
 [Open-WBO](https://github.com/sat-group/open-wbo) is used
 to build the incremental cardinality constraints with the Totalizer Encoding.
 This is not strictly necessary for ZykovColor, 
 but we also support the option to explicitly add at-most-$k$-constraints.
-[Boost](https://www.boost.org/) and ZLIB are also required,
+We also require the libraries of CaDiCaL and OpenWBO so they need to be compiled beforehand. 
+[Boost](https://www.boost.org/) (with the program_options library compiled) and ZLIB are also required,
 and the path to a binary of [CliSAT](https://github.com/psanse/CliSAT) is needed
 to compute an initial clique in preprocessing.
 

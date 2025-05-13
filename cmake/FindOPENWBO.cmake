@@ -16,10 +16,16 @@ ENDIF()
 FIND_PATH(OPENWBO_ENCODER_DIR Encoder.h
         PATHS ${OPENWBO_ROOT_DIR})
 FIND_PATH(OPENWBO_SOLVERS_DIR
-        NAMES glucose4.2
+        NAMES glucose4.2 glucose4.1
         PATH_SUFFIXES solvers
         HINTS ${OPENWBO_ROOT_DIR}/solvers)
-SET(OPENWBO_GLUCOSE_DIR ${OPENWBO_SOLVERS_DIR}/glucose4.2/)
+IF(EXISTS ${OPENWBO_SOLVERS_DIR}/glucose4.2/)
+    SET(OPENWBO_GLUCOSE_DIR ${OPENWBO_SOLVERS_DIR}/glucose4.2/)
+ELSEIF (EXISTS ${OPENWBO_SOLVERS_DIR}/glucose4.1/)
+    SET(OPENWBO_GLUCOSE_DIR ${OPENWBO_SOLVERS_DIR}/glucose4.1/)
+ELSE ()
+    MESSAGE("Did not find Glucose4.2 or Glucose4.1 in the OpenWBO solver directory")
+ENDIF ()
 
 # Combine the found directories into a single variable
 SET(OPENWBO_INCLUDE_DIRS  ${OPENWBO_ENCODER_DIR} ${OPENWBO_GLUCOSE_DIR})
