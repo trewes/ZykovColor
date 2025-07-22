@@ -40,7 +40,7 @@ Additionally add ``-DCMAKE_BUILD_TYPE=Release`` to compile with optimization fla
 ## Usage
 
 ```
-./IncSatGC inputfile [options] --configuration 
+./ZykovColor inputfile [options] --configuration 
 ```
 Where ``--configuration`` is one of the following:
 - ``--zykov-color``
