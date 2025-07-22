@@ -2,7 +2,7 @@
 
 
 This repository contains the code for the exact graph coloring algorithm **ZykovColor**,
-presented in "A Customized SAT-based Solver for Graph Coloring" available on [arxiv](https://arxiv.org/abs/2504.04821).
+presented in "A Customized SAT-based Solver for Graph Coloring".
 
 The focus is a custom external propagator using the IPASIR-UP interface [[1]](#1)
 to communicate information with the underlying SAT solver CaDiCal [[2]](#2).
