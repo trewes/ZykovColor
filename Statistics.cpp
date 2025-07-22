@@ -40,6 +40,7 @@ void Statistics::end_phase(const Statistics::Phase phase) {
             end_phase(PreprocessingMycielsky);
             end_phase(PreprocessingReductions);
             end_phase(PreprocessingInitialColoring);
+            end_phase(PreprocessingFractional);
             break;
         case Algorithm:
             end_phase(Preprocessing);
@@ -53,6 +54,7 @@ void Statistics::end_phase(const Statistics::Phase phase) {
             end_phase(PropagatorComputeCliques);
             end_phase(PropagatorCliqueClauses);
             end_phase(PropagatorMycielskyClauses);
+            end_phase(PropagatorFractionalBound);
             end_phase(PropagatorPositivePruning);
             end_phase(PropagatorNegativePruning);
             end_phase(TestColorTime);
@@ -63,7 +65,14 @@ void Statistics::end_phase(const Statistics::Phase phase) {
 }
 
 Duration Statistics::duration_of(const Statistics::Phase phase) const {
-    return durations.at(static_cast<int>(phase));
+    auto start = phase_latest_starttime.at(static_cast<int>(phase));
+    //phase not active, return stores value
+    if (not start.has_value()) {
+        return durations.at(static_cast<int>(phase));
+    }
+    //phase was active, add current active time to returned results
+    Duration duration = Duration(cpuTime() - start.value());
+    return durations.at(static_cast<int>(phase)) + duration;
 }
 
 double Statistics::duration_in_sec(const Statistics::Phase phase) const {
@@ -94,28 +103,30 @@ void Statistics::print_stats() const {
     print_time(PreprocessingClique,         "│ │ - Clique");
     print_time(PreprocessingMycielsky,      "│ │ - Mycielsky");
     print_time(PreprocessingReductions,     "│ │ - Reductions");
-    print_time(PreprocessingInitialColoring,"│ └ - Initial coloring");
+    print_time(PreprocessingInitialColoring,"│ │ - Initial coloring");
+    print_time(PreprocessingFractional,     "│ └ - Fractional bound");
     print_time(Algorithm,                   "│ ┌ Algorithm");
     print_time(BuildEncoding,               "│ │ - Building encoding");
     print_time(BuildAtMostK,                "│ │ - Building at most k constraints");
     print_time(CEGAR,                       "│ │ - CEGAR");
-    // if (options.encoding != Options::ZykovPropagator) {
+    if (options.encoding != Options::ZykovPropagator) {
     print_time(SatSolver,                   "└ └ - Sat solving");
-    // }
-    // else {
-    // print_time(SatSolver,                   "│ │ ┌ Sat solving");
-    // print_time(PropagatorAssignment,        "│ │ │ - Assign");
-    // print_time(PropagatorBacktrack,         "│ │ │ - Backtrack");
-    // print_time(PropagatorDecide,            "│ │ │ - Decide");
-    // print_time(PropagatorComputeCliques,    "│ │ │ - Compute Cliques");
-    // print_time(PropagatorCliqueClauses,     "│ │ │ - Clique Clauses");
-    // print_time(PropagatorMycielskyClauses,  "│ │ │ - Mycielsky Clauses");
-    // print_time(PropagatorPositivePruning,   "│ │ │ - Positive Pruning");
-    // print_time(PropagatorNegativePruning,   "└ └ └ - Negative Pruning");
-    // if (options.zykov_coloring_algorithm != Options::None) {
-    // print_time(TestColorTime,               "(testing) - Coloring time");
-    // }
-    // }
+    }
+    else {
+    print_time(SatSolver,                   "│ │ ┌ Sat solving");
+    print_time(PropagatorAssignment,        "│ │ │ - Assign");
+    print_time(PropagatorBacktrack,         "│ │ │ - Backtrack");
+    print_time(PropagatorDecide,            "│ │ │ - Decide");
+    print_time(PropagatorComputeCliques,    "│ │ │ - Compute Cliques");
+    print_time(PropagatorCliqueClauses,     "│ │ │ - Clique Clauses");
+    print_time(PropagatorMycielskyClauses,  "│ │ │ - Mycielsky Clauses");
+    print_time(PropagatorFractionalBound,   "│ │ │ - Fractional Bounding");
+    print_time(PropagatorPositivePruning,   "│ │ │ - Positive Pruning");
+    print_time(PropagatorNegativePruning,   "└ └ └ - Negative Pruning");
+    if (options.zykov_coloring_algorithm != Options::None) {
+    print_time(TestColorTime,               "(testing) - Coloring time");
+    }
+    }
 
     if (num_cegar_iterations > 0){
         std::cout << "c Stats: Cegar " << num_total_conflicts << " conflicts in "
@@ -161,6 +172,12 @@ void Statistics::print_stats() const {
               if (options.zykov_coloring_algorithm != Options::None) {
               std::cout << "coloring heuristic time saved " << heuristic_theoretical_time_improvement << "\n";
               }
+              if (options.verbosity >= Options::Debug or (options.verbosity >= Options::Normal and fractional_bound_success >= 1)) {
+                  std::cout << "Fractional bound succ/calls " << fractional_bound_success << "/" << fractional_bound_calls
+                            << " with total time "<< full_fractional_time << "\n";
+              }
+            // << " and INC " << inc_fractional_time  << "\n";
+
 }
 
 void Statistics::write_stats() const {
@@ -169,6 +186,7 @@ void Statistics::write_stats() const {
     csv_header << "instance;" "full cmd;" "solved;"
                //time stats
                "total time;" "preprocessing time;" "clique time;" "mycielsky time;" "reductions time;" "initial coloring time;"
+               "initial fractional time;"
                "algorithm time;" "encoding time;" "at most k time;" "cegar time;" "solver time;"
                //algorithm information stats
                "lower bound;" "tt_lb;" "clique bound;" "mycielsky bound;"
@@ -186,9 +204,10 @@ void Statistics::write_stats() const {
                "cliques successes;" "clique levels;"
                "mycielsky calls;" "mycielsky successes;" "mycielsky levels;"
                "dominated vertex decisions;" "positive prunings;" "positive pruning levels;"
-               "negative prunings;" "negative pruning levels"
+               "negative prunings;" "negative pruning levels;"
                <<(options.zykov_coloring_algorithm != Options::None ? ";heuristic time improvement" : "")  //optional stats that are not always reported
-               <<(options.enable_detailed_backtracking_stats ? ";detailed backtrack stats" : "")<<
+               <<(options.enable_detailed_backtracking_stats ? "detailed backtrack stats;" : "")<<
+               "fractional calls;" "fractional successes;" "fractional running time;"
                "\n";
     // If the csv file does not exist, create it and write first row, otherwise open and append
     std::ofstream csv_file;
@@ -204,6 +223,8 @@ void Statistics::write_stats() const {
             << duration_in_sec(Total) << ";" << duration_in_sec(Preprocessing) << ";"
             << duration_in_sec(PreprocessingClique) << ";" << duration_in_sec(PreprocessingMycielsky) << ";"
             << duration_in_sec(PreprocessingReductions) << ";" << duration_in_sec(PreprocessingInitialColoring) << ";"
+            << duration_in_sec(PreprocessingFractional) << ";"
+
             << duration_in_sec(Algorithm) << ";" << duration_in_sec(BuildEncoding) << ";"
             << duration_in_sec(BuildAtMostK) << ";" << duration_in_sec(CEGAR) << ";" << duration_in_sec(SatSolver) << ";"
             //algorithm information stats
@@ -225,9 +246,10 @@ void Statistics::write_stats() const {
             << prop_num_clique_successes << ";" << truncate(prop_clique_pruning_level) << ";"
             << mycielsky_calls << ";" << mycielsky_sucesses << ";" << truncate(prop_myc_pruning_level) << ";"
             << prop_num_dominated_vertex_decisions << ";" << prop_positive_prunings << ";" << truncate(prop_positive_pruning_level) << ";"
-            << prop_negative_prunings << ";" << truncate(prop_negative_pruning_level)
-            << (options.zykov_coloring_algorithm != Options::None ? ";"+std::to_string(heuristic_theoretical_time_improvement.count()) : "")
-            << (options.enable_detailed_backtracking_stats? ";"+vec2str(prop_detailed_backtrack_list) : "")
+            << prop_negative_prunings << ";" << truncate(prop_negative_pruning_level) << ";"
+            << (options.zykov_coloring_algorithm != Options::None ? std::to_string(heuristic_theoretical_time_improvement.count())+";" : "")
+            << (options.enable_detailed_backtracking_stats? vec2str(prop_detailed_backtrack_list)+";" : "")
+            << fractional_bound_calls << ";" << fractional_bound_success << ";" << full_fractional_time << ";"
             << "\n";
 }
 
@@ -297,6 +319,15 @@ void Statistics::add_clique_time(const double time){
     durations.at(static_cast<int>(Preprocessing)) += duration;
     durations.at(static_cast<int>(PreprocessingClique)) += duration;
 }
+
+void Statistics::add_fractional_time(const double time){
+    Duration duration(time);
+    //have to increase Total, Preprocessing and PreprocessingFractional
+    durations.at(static_cast<int>(Total)) += duration;
+    durations.at(static_cast<int>(Preprocessing)) += duration;
+    durations.at(static_cast<int>(PreprocessingFractional)) += duration;
+}
+
 
 
 

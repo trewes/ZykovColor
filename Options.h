@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <filesystem>
+#include <random>
 #include <optional> //optional values for variables
 #include <boost/program_options.hpp> //use boost to parse options
 namespace po = boost::program_options;
@@ -102,6 +103,10 @@ struct Options {
     //MNTS parameters
     int mnts_length;
     int mnts_depth;
+
+    //fractional chromatic number parameters
+    bool use_fractional_bound;
+    double frac_density;
 
 private:
     static std::string enum_names_to_string(const std::vector<std::string>& enum_strings);

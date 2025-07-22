@@ -27,6 +27,7 @@ public:
             PreprocessingMycielsky,
             PreprocessingReductions,
             PreprocessingInitialColoring,
+            PreprocessingFractional,
         Algorithm,
             BuildEncoding,
             BuildAtMostK,
@@ -38,6 +39,7 @@ public:
                 PropagatorComputeCliques,
                 PropagatorCliqueClauses,
                 PropagatorMycielskyClauses,
+                PropagatorFractionalBound,
                 PropagatorPositivePruning,
                 PropagatorNegativePruning,
                 TestColorTime,
@@ -64,8 +66,9 @@ public:
     static double memUsage();
     static double peakMemUsage();
 
-    //extra function to add time from child process used for clique to total times
+    //extra function to add time from child process used for clique/fractional bound to total times
     void add_clique_time(double time);
+    void add_fractional_time(double time);
 
     // #########  all the variables and data points we want to observe and store during the algorithm  ####
 
@@ -76,6 +79,7 @@ public:
     Duration tt_lower_bound;
     int clique_lower_bound;
     int mc_lower_bound;
+    int frac_lower_bound;
     int upper_bound;
     Duration tt_upper_bound;
     int heuristic_bound;
@@ -155,6 +159,10 @@ public:
     Duration heuristic_coloring_time_point;
     //how much time would have been saved if stopping when heuristic found coloring
     Duration heuristic_theoretical_time_improvement = Duration(0);
+
+    int fractional_bound_calls = 0;
+    int fractional_bound_success = 0;
+    Duration full_fractional_time = Duration(0.0);
 
 };
 std::ostream &operator<<(std::ostream &s, Duration duration);

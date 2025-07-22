@@ -16,11 +16,17 @@
 #include <unordered_set> //unordered set for quick member checks
 #include <filesystem> //check that external binary file exists
 #include <csignal> //exit signals and handing
+#include <regex>
 
 #include "core/Solver.h" //base glucose solver
 #include "utils/System.h" //cpuTime and memUsed functions
 #include "Encoder.h" //encoder used to build cardinality constraints
-#include <boost/process.hpp> //to run external binary to obtain a clique
+// #define BOOST_PROCESS_VERSION 1
+// #include <boost/process.hpp> //to run external binary to obtain a clique
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
+#include <boost/process/v1/pipe.hpp>
+#include <boost/process/v1/start_dir.hpp>
 #include <boost/graph/adjacency_list.hpp> //graph we use when computing connected components
 #include <boost/graph/connected_components.hpp> //connected components algorithm
 #include <boost/dynamic_bitset.hpp> //dynamic size bitsets for faster logic operations
@@ -30,6 +36,7 @@
 #include "Statistics.h" //struct to store and write statistics
 #include "ExtendSolvers.h" //adapts cadical to use with cardinality encodings
 #include "CadicalZykovPropagator.h" //implements specific ExternalPropagator that solves problem with callbacks
+#include "FractionalBound.h" //functions to compute fractional chromatic number
 
 
 //some typedefs
@@ -104,6 +111,7 @@ private:
     int lower_bound;
     int clique_lower_bound;
     int mc_lower_bound;
+    int frac_lower_bound;
     int upper_bound;
     int heuristic_bound;
 
@@ -156,6 +164,10 @@ private:
     void preprocessing_initial_coloring();
     void preprocessing_clique_ordering();
 
+    int initial_fractional_timeout = 10;
+    bool flag_fractional_timed_out = false;
+    int external_get_fractional();
+
 
     //collected notification and print functions for lb/ub updates or other related cases
     void notify_new_bound(bool res, int num_colors);
@@ -163,6 +175,7 @@ private:
     void notify_lower_bound(int num_colors);
     void notify_clique_lb(int num_colors);
     void notify_mycielsky_lb(int num_colors);
+    void notify_fractional_lb(int num_colors);
     void notify_upper_bound(int num_colors);
     void notify_heuristic_ub(int num_colors);
     void collect_bound_information(int bound, bool res);

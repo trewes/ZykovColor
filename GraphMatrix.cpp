@@ -96,7 +96,7 @@ void MGraph::contract_vertices(int u, int v) {
     nodeset.reset(v); //vertex contracted, not available anymore
     removed_vertices.push_back(v);
     num_vertices--;
-    //contractec v into u, remove u from list of vertices
+    //contracted v into u, remove v from list of vertices
     auto eraseIt = std::remove(vertices.begin(), vertices.end(), v); //move vertex to end
     vertices.erase(eraseIt, vertices.end()); //erase vertex
 }

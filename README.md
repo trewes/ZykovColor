@@ -1,40 +1,41 @@
 # ZykovColor
 
 
-This repository contains the code for the exact graph coloring algorithm **ZykovColor**, 
-presented in "A Customized SAT-based Solver for Graph Coloring".
-It is released under the MIT License (see LICENSE file).
+This repository contains the code for the exact graph coloring algorithm **ZykovColor**,
+presented in "A Customized SAT-based Solver for Graph Coloring" available on [arxiv](https://arxiv.org/abs/2504.04821).
 
 The focus is a custom external propagator using the IPASIR-UP interface [[1]](#1)
-to communicate information with the underlying SAT solver CaDiCaL [[2]](#2).
+to communicate information with the underlying SAT solver CaDiCal [[2]](#2).
 It works on top of a Zykov-based SAT encoding for the graph coloring problem
 and handles the transitivity constraints, can prune parts of the search with lower bounds,
 and uses further techniques detailed in the paper to yield a competitive algorithm.
-The presented propagator extends the ideas of [[3]](#3) and uses SAT instead of a CSP solver, 
+The presented propagator extends the ideas of [[3]](#3) and uses SAT instead of a CSP solver,
 which also allows solving the decision problems incrementally and re-using information and learned clauses.
 
 ## Dependencies and Installation
 
 
-We used version 2.1.2 of [CaDiCaL](https://github.com/arminbiere/cadical), 
+We used version 2.1.2 of [CaDiCal](https://github.com/arminbiere/cadical),
 but any version with the same IPASIR-UP interface should work.
 [Open-WBO](https://github.com/sat-group/open-wbo) is used
 to build the incremental cardinality constraints with the Totalizer Encoding.
-This is not strictly necessary for ZykovColor, 
+This is not strictly necessary for ZykovColor,
 but we also support the option to explicitly add at-most-$k$-constraints.
-We also require the libraries of CaDiCaL and OpenWBO so they need to be compiled beforehand. 
-[Boost](https://www.boost.org/) (with the program_options library compiled) and ZLIB are also required,
+[Boost](https://www.boost.org/) and ZLIB are also required,
 and the path to a binary of [CliSAT](https://github.com/psanse/CliSAT) is needed
 to compute an initial clique in preprocessing.
+Additionally, to compute the fractional chromatic number in the propagator, 
+we need to compile and link [exactcolors](https://github.com/heldstephan/exactcolors), which requires either cplex or gurobi.
+The cmake currently uses only gurobi.
 
-
-To create and use the binary ``ZykovColor`` it should be as simple as
+Once all dependencies have been compiled, 
+compiling the binary ``ZykovColor`` should be as simple as
 ```
 mkdir build && cd build
-cmake .. -DBOOST_ROOT=/path/to/boost -DOPENWBO_ROOT_DIR=/path/to/open-wbo -DCADICAL_ROOT_DIR=/path/to/cadical -DCLISAT_BINARY_PATH=/path/to/clisat/binary
+cmake .. -DBOOST_ROOT=/path/to/boost -DOPENWBO_ROOT_DIR=/path/to/open-wbo -DCADICAL_ROOT_DIR=/path/to/cadical -DCLISAT_BINARY_PATH=/path/to/clisat/binary -DEXACTCOLORS_ROOT_DIR=/path/to/exactcolors -DGUROBI_HOME=/path/to/gurobi
 make
 ```
-Additionally add ``-DCMAKE_BUILD_TYPE=Release`` to compile in optimized mode.
+Additionally add ``-DCMAKE_BUILD_TYPE=Release`` to compile with optimization flags.
 
 ## Usage
 
@@ -46,7 +47,7 @@ Where ``--configuration`` is one of the following:
 - ``--assignment``
 - ``--partial-order``
 
-They run either ZykovColor, the Assignment encoding, or the Partial Order encoding 
+They run either ZykovColor, the Assignment encoding, or the Partial Order encoding
 in their default configuration as described in the paper.
 
 ### Reference
@@ -62,5 +63,5 @@ International Conference on Computer Aided Verification.
 Cham: Springer Nature Switzerland, 2024.
 
 <a id="1">[3]</a>
-Hebrard, Emmanuel, and George Katsirelos. "Constraint and satisfiability reasoning for graph coloring." 
+Hebrard, Emmanuel, and George Katsirelos. "Constraint and satisfiability reasoning for graph coloring."
 Journal of Artificial Intelligence Research 69 (2020): 33-65.

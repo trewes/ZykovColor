@@ -25,6 +25,7 @@ IncSatGC::IncSatGC(Graph::Graph in_graph, Options options_) :
         lower_bound(1 + (graph.ecount() > 0)),
         clique_lower_bound(1 + (graph.ecount() > 0)),
         mc_lower_bound(1),
+        frac_lower_bound(0),
         upper_bound(num_vertices),
         heuristic_bound(num_vertices),
         complement_graph_adjacency({}),
@@ -46,6 +47,7 @@ IncSatGC::IncSatGC(Graph::Graph in_graph, Options options_) :
     stats.lower_bound = lower_bound;
     stats.clique_lower_bound = clique_lower_bound;
     stats.mc_lower_bound = mc_lower_bound;
+    stats.frac_lower_bound = frac_lower_bound;
     stats.upper_bound = upper_bound;
     stats.heuristic_bound = heuristic_bound;
     new_SAT_solver();
@@ -84,9 +86,17 @@ void IncSatGC::preprocessing(){
     stats.start_phase(Statistics::Preprocessing);
     stats.original_graph_size = {graph.ncount(), graph.ecount(), graph.density()};
 
-    //get lower bounds on chromatic number
+    //get lower bounds on chromatic number and compute first initial coloring
     preprocessing_clique_bound();
     preprocessing_mycielsky_bound();
+    preprocessing_initial_coloring();
+    //check if that already solved the graph
+    if(lower_bound == upper_bound){
+        solved_in_preprocessing = true;
+        stats.solved = true;
+        stats.solved_in_preprocessing = solved_in_preprocessing;
+        return;
+    }
     //use bound and dominated vertices to reduce graph
     if( options.reduce_graph ){
         preprocessing_reductions();
@@ -95,16 +105,41 @@ void IncSatGC::preprocessing(){
     if(not solved_in_preprocessing) {
         preprocessing_initial_coloring();
     }
-    //check if that already solved the graph
     if(lower_bound == upper_bound){
         solved_in_preprocessing = true;
         stats.solved = true;
         stats.solved_in_preprocessing = solved_in_preprocessing;
+        return;
     }
     //permute the graph if option is set
     if ((not solved_in_preprocessing) and options.use_clique_in_ordering) {
         preprocessing_clique_ordering();
     }
+    //compute fractional chromatic number as initial bound (with a timeout)
+    if (not solved_in_preprocessing) {
+        frac_lower_bound = external_get_fractional();
+        notify_lower_bound(frac_lower_bound);
+        if (options.verbosity >= Options::Debug) {
+            std::cout << "c Initial fractional lower bound of " << std::setprecision(25) << frac_lower_bound << std::setprecision(5)
+                      << " in " << stats.duration_of(Statistics::PreprocessingFractional) <<  "\n";
+        }
+        if(lower_bound == upper_bound){
+            solved_in_preprocessing = true;
+            stats.solved = true;
+            stats.solved_in_preprocessing = solved_in_preprocessing;
+        }
+    }
+
+    if (options.verbosity >= Options::Normal) {
+        std::cout << "c Found lb " << lower_bound << " and ub " << upper_bound <<
+                  " at " << stats.current_total_time() << " and " << Statistics::memUsage() << " mb memory" ;
+        if (options.verbosity >= Options::Verbose) {
+            std::cout << " (clique lb " << clique_lower_bound << ", mycielsky lb " << mc_lower_bound
+                      << ", fractional lb "<< frac_lower_bound << ", heuristic ub " << heuristic_bound << ")";
+        }
+        std::cout << ".\n";
+    }
+
     stats.end_phase(Statistics::Preprocessing);
 }
 
@@ -335,7 +370,7 @@ bool IncSatGC::get_model_ij(const Model &model, int i, int j) const {
 
 std::vector<Graph::VertexType> IncSatGC::external_get_clique(bool write_graph_get_clique) {
     std::vector<Graph::VertexType> CliSAT_clique;
-    namespace bp = boost::process;
+    namespace bp = boost::process::v1;
 
     //first check that external CliSAT binary for cliques exists
     std::filesystem::path CliSAT_path;
@@ -366,12 +401,13 @@ std::vector<Graph::VertexType> IncSatGC::external_get_clique(bool write_graph_ge
     std::string cmd_output;
     bp::ipstream out_stream; // stream for command output
 
+    auto start = Statistics::childCpuTime();
     // execute the command and redirect the output to out_stream
     bp::child c(CliSAT_path.string(), args, bp::std_out > out_stream);
     // wait for the process to finish
     c.wait();
     //add child process time to stats
-    stats.add_clique_time(Statistics::childCpuTime());
+    stats.add_clique_time(Statistics::childCpuTime() - start);
 
     // read the command's output and store all lines
     std::vector<std::string> command_output_lines;
@@ -585,23 +621,19 @@ void IncSatGC::preprocessing_initial_coloring() {
     }
     notify_heuristic_ub(static_cast<int>(heuristic_coloring.size()));
 
-    if (options.verbosity >= Options::Normal) {
-        std::cout << "Found lb " << lower_bound << " and ub " << upper_bound <<
-                  " at " << stats.current_total_time() << " and " << Statistics::memUsage() << " mb memory" ;
-        if (options.verbosity >= Options::Verbose) {
-            std::cout << " (clique lb " << clique_lower_bound << ", mycielsky lb " << mc_lower_bound
-                      << " heuristic ub " << heuristic_bound << ")";
+    if (static_cast<int>(heuristic_coloring.size()) < heuristic_bound) {
+        //transform and store heuristic coloring in current_best_coloring
+        current_best_coloring.resize(num_vertices, NoColor);
+        for (int cclass = 0; cclass < static_cast<int>(heuristic_coloring.size()); cclass++) {
+            for (auto v : heuristic_coloring[cclass]) {
+                current_best_coloring[v] = cclass;
+            }
         }
-        std::cout << ".\n";
+        assert(std::count(current_best_coloring.begin(), current_best_coloring.end(), NoColor) == 0);
     }
-    //transform and store heuristic coloring in current_best_coloring
-    current_best_coloring.resize(num_vertices, NoColor);
-    for (int cclass = 0; cclass < static_cast<int>(heuristic_coloring.size()); cclass++) {
-        for (auto v : heuristic_coloring[cclass]) {
-            current_best_coloring[v] = cclass;
-        }
+    if(options.verbosity >= Options::Verbose){
+        std::cout << "c Dsatur heuristic: computed upper bound of " << heuristic_coloring.size() << "\n";
     }
-    assert(std::count(current_best_coloring.begin(), current_best_coloring.end(), NoColor) == 0);
     stats.end_phase(Statistics::PreprocessingInitialColoring);
 }
 
@@ -655,6 +687,77 @@ void IncSatGC::preprocessing_mycielsky_bound() {
 }
 
 
+int IncSatGC::external_get_fractional() {
+    std::vector<Graph::VertexType> CliSAT_clique;
+    namespace bp = boost::process::v1;
+
+    //first check that external CliSAT binary for cliques exists
+    std::filesystem::path EC_path;
+#ifdef EC_BINARY_PATH
+    EC_path = EC_BINARY_PATH;
+    if (not std::filesystem::exists(EC_path)) {
+        throw std::runtime_error("The external exactcolors binary does not exist at the specified path.");
+    }
+#else
+    throw std::runtime_error("Path to exactcolors was not provided");
+#endif
+
+    std::string tmp_name;
+    if(has_removed_vertices_in_reduction){
+        //write current problem graph to file, so we can run EC
+        tmp_name = "tmp_reduced_" + std::string(options.filename);
+        graph.write_dimacs(tmp_name);
+    }
+
+    std::vector<std::string> args(2);
+    args[0] = (has_removed_vertices_in_reduction ? tmp_name : options.filepath);
+    args[1] = "-s 0";
+
+    std::string cmd_output;
+    bp::ipstream out_stream; // stream for command output
+
+    auto start = Statistics::childCpuTime();
+    // execute the command and redirect the output to out_stream
+    bp::child c(EC_path.string(), args, bp::std_out > out_stream);
+
+    auto TIMEOUT = std::chrono::seconds(initial_fractional_timeout);
+    bool finished = c.wait_for(TIMEOUT);
+
+    //add child process time to stats
+    stats.add_fractional_time(Statistics::childCpuTime() - start);
+
+    if (not finished) {
+        c.terminate();
+        if(has_removed_vertices_in_reduction){
+            std::filesystem::remove(tmp_name);
+        }
+        flag_fractional_timed_out = true;
+        return 0; //ec did not produce a lower bound
+    }
+    else {
+        assert(stats.duration_of(Statistics::PreprocessingFractional).count() <= TIMEOUT.count());
+    }
+
+    std::regex  re{R"(LB\s+(\d+))", std::regex::icase};
+    std::smatch m;
+    int opt_colors = -1;
+
+    std::string line;
+    while (std::getline(out_stream, line)) {
+        if (std::regex_search(line, m, re)) {
+            opt_colors = std::stoi(m[1]);
+        }
+    }
+    if (opt_colors < 0) {
+        throw std::runtime_error("CliSAT finished but did not print 'Opt Colors:' line");
+    }
+
+    if(has_removed_vertices_in_reduction){
+        //delete written temporary graph
+        std::filesystem::remove(tmp_name);
+    }
+    return opt_colors;
+}
 
 void IncSatGC::notify_new_bound(const bool res, const int num_colors) {
     if(options.verbosity >= Options::Normal){
@@ -694,6 +797,14 @@ void IncSatGC::notify_mycielsky_lb(const int num_colors) {
     if(mc_lower_bound < num_colors){
         mc_lower_bound = num_colors;
         stats.mc_lower_bound = num_colors;
+        notify_lower_bound(num_colors);
+    }
+}
+
+void IncSatGC::notify_fractional_lb(const int num_colors) {
+    if(frac_lower_bound < num_colors){
+        frac_lower_bound = num_colors;
+        stats.frac_lower_bound = num_colors;
         notify_lower_bound(num_colors);
     }
 }

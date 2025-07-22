@@ -137,7 +137,6 @@ void CadicalZykovPropagator::notify_backtrack(size_t new_level) {
     max_clique_size = -1;
     first_call_after_backtrack = true;
     touched_vertices.clear();
-
     PROP_TIMING(stats.end_phase(Statistics::PropagatorBacktrack););
 }
 
@@ -249,6 +248,9 @@ bool CadicalZykovPropagator::cb_has_external_clause(bool& is_forgettable) {
     if(compute_coloring()){
         check_for_coloring();
     }
+    if (compute_fractional_bound()) {
+        check_for_fractional_bound();
+    }
     first_call_after_backtrack = false;
 
     if(not external_clauses.empty()){
@@ -321,6 +323,8 @@ CadicalZykovPropagator::CadicalZykovPropagator(IncSatGC &reference)
     if(options.enable_negative_pruning){
     	stats.prop_negative_pruning_level.resize(500,0);
     }
+
+    flag_fractional_timed_out = INSTANCE->flag_fractional_timed_out;
 }
 
 void CadicalZykovPropagator::update_num_colors(int num_colors_) {
@@ -792,7 +796,6 @@ void CadicalZykovPropagator::compute_cliques() {
     //run any clique algorithm to store largest cliques in maximal_cliques
     max_clique_size = mgraph.greedy_cliques(maximal_cliques, options.prop_clique_limit);
     if (options.mnts_length > 0 and max_clique_size <= num_colors){
-    //     find_cliques_externally(); calling external clisat binary, not fast
         std::vector<Bitset> mnts_cliques;
         int mnts_size = mgraph.mnts_clique(mnts_cliques, num_colors + 1,
                                 options.mnts_length, options.mnts_depth,
@@ -971,7 +974,6 @@ void CadicalZykovPropagator::add_mycielsky_explanation_clause(const MGraph::SubG
 }
 
 
-
 //helper function to produce subgraph description string in dimacs format
 std::string get_subgraph_dimacs(const MGraph &subgraph) {
     std::stringstream ss;
@@ -990,115 +992,6 @@ std::string get_subgraph_dimacs(const MGraph &subgraph) {
     std::stringstream header;
     header << "p edge " << subgraph.size << " " << edge_count << "\n";
     return header.str() + ss.str();
-}
-
-void CadicalZykovPropagator::find_cliques_externally() {
-    Bitset CliSAT_clique(num_vertices);
-    namespace bp = boost::process;
-
-    //first check that external CliSAT binary for cliques exists
-    std::filesystem::path CliSAT_path;
-#ifdef CLISAT_BINARY_PATH
-    CliSAT_path = CLISAT_BINARY_PATH;
-    if (not std::filesystem::exists(CliSAT_path)) {
-        throw std::runtime_error("The external CliSAT binary does not exist at the specified path.");
-    }
-#else
-    throw std::runtime_error("External CliSAT binary was not specified so the option to use it is invalid.");
-#endif
-
-
-    //produce the current subgraph on active nodes and write it to a named pipe
-    std::string subgraph_dimacs = get_subgraph_dimacs(mgraph);
-    const char* named_pipe = "subgraph_pipe";
-
-    // Create a named pipe if it doesn't exist
-    if (not std::filesystem::exists(named_pipe)) {
-        if (mkfifo(named_pipe, 0666) == -1) {
-            throw std::runtime_error("Could not create subgraph pipe.");
-        }
-    }
-
-
-    //provide commands and path of pipe to call binary on using a boost::process
-    std::vector<std::string> args(4);
-    args[0] = named_pipe;
-    args[1] = "0.05";//add a smaller time limit as we want to call this often
-    args[2] = "1";//and choose method 1 for CliSAT
-    args[3] = "1";//enable AMTS heuristic for CliSAT
-
-    std::string cmd_output;
-    bp::ipstream out_stream; // stream for command output
-
-    // execute the command and redirect the output to out_stream
-    bp::child c(CliSAT_path.string(), args, bp::std_out > out_stream);
-
-    //now pipe subgraph string to named pipe so binary can take it as input
-    //write subgraph string to named pipe
-    std::ofstream pipe(named_pipe);
-    if (!pipe.is_open()) {
-        unlink(named_pipe);
-        throw std::runtime_error("Could not open subgraph pipe.");
-    }
-    pipe << subgraph_dimacs;
-    pipe.close();
-    // std::cout << subgraph_dimacs;
-
-
-    // wait for the process to finish
-    c.wait();
-    //add child process time to stats
-    //stats.add_clique_time(Statistics::childCpuTime());
-
-    // read the command's output and store all lines
-    std::vector<std::string> command_output_lines;
-    while(std::getline(out_stream, cmd_output)){
-        command_output_lines.push_back(cmd_output);
-    }
-    std::string clique_output = *(command_output_lines.rbegin());
-    clique_output = clique_output.substr(7,clique_output.length());
-    //extract size of clique and truncate string
-    int clique_size = 0;
-    std::size_t found = clique_output.find('[');
-    if (found != std::string::npos) {
-        //new string of only number in brackets
-        std::string out_size_str = clique_output.substr(found + 1, clique_output.find(']') - found - 1);
-        clique_size = std::stoi(out_size_str);
-        // Truncate original string
-        clique_output = clique_output.substr(0, found);
-    }
-    std::istringstream iss(clique_output);
-    Graph::VertexType v;
-    while (iss >> v){
-        CliSAT_clique.set(v); //their vertex numbering starts at 0
-    }
-
-    //check whether found clique was optimal
-    bool clique_is_optimal = true;
-    for (const std::string& line : command_output_lines) {
-        if(line.find("exiting on time out") != std::string::npos){
-            clique_is_optimal = false;
-            break;
-        }
-    }
-    //print results
-    if(options.verbosity >= Options::Verbose) {
-        std::cout << "c Clique: Found "
-                  << (clique_is_optimal ? "an optimal" : "a non-optimal")
-                  << " clique of size " << clique_size ;
-        if(options.verbosity >= Options::Debug) {
-            std::cout << ": ";
-            for (int v = CliSAT_clique.find_first(); v != Bitset::npos; v = CliSAT_clique.find_next(v)) {
-                std::cout << v << " ";
-            }
-        }
-        std::cout << "\n";
-    }
-    assert(static_cast<int>(CliSAT_clique.count()) == clique_size);
-
-    // unlink(named_pipe);
-    max_clique_size = clique_size;
-    maximal_cliques = {CliSAT_clique};
 }
 
 
@@ -1297,6 +1190,67 @@ void CadicalZykovPropagator::check_for_coloring() const {
         }
     }
     PROP_TIMING(stats.end_phase(Statistics::TestColorTime););
+}
+
+
+bool CadicalZykovPropagator::compute_fractional_bound() const {
+    if (flag_fractional_timed_out) {
+        //computation for initial bound computation took too long, do not use bounding in propagator
+        return false;
+    }
+    if (options.use_fractional_bound and first_call_after_backtrack and external_clauses.empty()
+            and num_assigned > INSTANCE->encoder_assumptions.size()) {
+        if (mgraph.density() >= options.frac_density) { //density threshold criteria
+            return true;
+        }
+    }
+    return false;
+}
+
+void CadicalZykovPropagator::check_for_fractional_bound() {
+    PROP_TIMING(stats.start_phase(Statistics::PropagatorFractionalBound););
+    if (options.verbosity >= Options::Debug) {
+        std::cout << "Checking fractional bound on level " << current_level << " with "
+                  << std::accumulate(current_trail.begin(), current_trail.end(), 0, [](int sum, auto& v){return sum + v.size();}) << " assignments and "
+                  << std::accumulate(current_trail.begin(), current_trail.end(), 0, [&](int sum, auto& v){return sum +
+                      std::count_if(v.begin(), v.end(), [&](int a){return a > 0 and a - 1 < highest_sij_var;});}) << " merged"
+                  << " at density " << mgraph.density() << "\n";
+    }
+    stats.fractional_bound_calls++;
+    auto start = Statistics::cpuTime();
+    //build graph on which to compute bound
+    std::vector<int> index_mapping;
+    std::vector<Bitset> active_subgraph = mgraph.get_active_subgraph(index_mapping);
+    //compute bound
+    double frac = fractional_chromatic_number_exactcolors(active_subgraph);
+    auto total = Duration(Statistics::cpuTime() - start);
+    stats.full_fractional_time += total;
+
+    //if bound causes a conflict, add an external clause
+    if (frac > num_colors) {
+        stats.fractional_bound_success++;
+        if (options.verbosity >= Options::Debug) {
+            std::cout << std::setprecision(25) << "PRUNE! Fractional bound: " << frac << " " << total << "\n";
+        }
+        std::vector<int> tmp;
+        // add trivial reason clause to cause backtrack
+        assert(current_level + 1 == current_trail.size());
+        for (int i = 1; i <= current_level; i++) {
+            int decision_lit = current_trail[i][0];
+            if (decision_lit != bottom_up_clique_assumption_variable and decision_lit - 1 > highest_sij_var) {
+                continue;
+            }
+            assert(std::dynamic_pointer_cast<CaDiCaLAdaptor::Solver>(INSTANCE->solver)->solver.is_decision(decision_lit));
+            tmp.push_back(-decision_lit);
+        }
+        external_clauses.push_back(tmp);
+    }
+    else {
+        if (options.verbosity >= Options::Debug) {
+            std::cout << std::setprecision(25) << "Fractional bound: " << frac << " " << total << "\n";
+        }
+    }
+    PROP_TIMING(stats.end_phase(Statistics::PropagatorFractionalBound););
 }
 
 

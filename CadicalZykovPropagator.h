@@ -13,6 +13,7 @@
 
 #include "GraphMatrix.h"
 #include "Statistics.h"
+#include "FractionalBound.h"
 
 using ConflictQueue = std::deque< std::vector<int> >;
 using Bitset = boost::dynamic_bitset<>;
@@ -250,11 +251,6 @@ public:
     //given a mycielsky bound, produce the explanation clause and add it to external_clauses
     void add_mycielsky_explanation_clause(const MGraph::SubGraph &subgraph);
 
-
-    //use external binary CliSAT to find a strong clique on the current subgraph
-    // modifies max_clique_size and stores clique in max_cliques
-    void find_cliques_externally();
-
     //functions for clique-based pruning as pre-processing of the subproblem graph
     // and to compute dominated vertices as a "good" decision to be made
     //store vertices whose neighbourhood changed, only those are relevant for neighbourhood search
@@ -268,6 +264,11 @@ public:
     //functions to look for a coloring on graph of current node in Zykov tree
     [[nodiscard]] bool compute_coloring() const;
     void check_for_coloring() const;
+
+    //function to compute the fractional chromatic number as bound and check if it should be executed
+    [[nodiscard]] bool compute_fractional_bound() const;
+    void check_for_fractional_bound();
+    bool flag_fractional_timed_out;
 
 };
 

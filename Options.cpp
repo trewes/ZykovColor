@@ -31,6 +31,8 @@ Options::Options() {
     enable_detailed_backtracking_stats = false;
     mnts_length = 0;
     mnts_depth = 25;
+    use_fractional_bound = false;
+    frac_density = 1.0;
 }
 
 Options::Options(int argc, char **argv) : Options() {
@@ -124,7 +126,13 @@ Options::Options(int argc, char **argv) : Options() {
             "Runs the ZykovColor algorithm with the default options, overrides all other options")
             ("partial-order", po::bool_switch(&partial_order_default),
             "Runs the ZykovColor algorithm with the default options, overrides all other options")
-            ;
+
+            ("use-fractional", po::bool_switch(&use_fractional_bound),
+            "Computes fractional chromatic number for bounding")
+
+            ("frac-density", po::value(&frac_density),
+            "Density threshold for fractional bound computation")
+        ;
 
     //parse positional option which is the filename
     po::options_description positional_options("Positional options");
@@ -146,10 +154,12 @@ Options::Options(int argc, char **argv) : Options() {
     po::notify(vm);
 
     //print help if option is set or no inputfile is given
-    if (vm.count("help") or (not vm.count("inputfile") or (not(zykov_color_default or assignment_default or partial_order_default)))) {
+    if (vm.count("help") or (not vm.count("inputfile")
+        or (not(zykov_color_default or assignment_default or partial_order_default))
+        )) {
         std::cout << "USAGE: " << argv[0] << " [options] inputfile --configuration\n"
-                  << "where input is a graph in dimacs format.\n"
-                  << "and configuration is one of --zykov-color, --assignment, --partial-order\n";
+                  << "where input is a graph in dimacs format.\n";
+                  // << "and configuration is one of --zykov-color, --assignment, --partial-order\n";
         if (vm.count("help")) {
             std::cout << general_options << "\n";
         }
@@ -193,6 +203,8 @@ Options::Options(int argc, char **argv) : Options() {
         zykov_coloring_algorithm = None;
         prop_clique_limit = std::numeric_limits<int>::max();
         enable_detailed_backtracking_stats = false;
+        use_fractional_bound = true;
+        frac_density = 0.75;
     }
     else if (assignment_default) {
         if (verbosity >= Normal) {
@@ -219,6 +231,7 @@ Options::Options(int argc, char **argv) : Options() {
     }
     else {
         throw po::error("Provide one of the following to specify the configuration:\n--zykov-color, --assignment, --partial-order");
+        std::cout <<"WARNING: using custom configuration. Provide one of the following to specify a default configuration:\n--zykov-color, --assignment, --partial-order\n";
     }
 
 
