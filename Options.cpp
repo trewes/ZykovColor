@@ -70,8 +70,8 @@ Options::Options(int argc, char **argv) : Options() {
                     "Enable removing vertices in preprocessing")
             ("use-clique,o", po::bool_switch(&use_clique_in_ordering),
                     "Enable fixing the first vertices of a clique")
-            ("mycielsky-bound,m", po::bool_switch(&use_mycielsky_lb),
-                    "Compute initial mycielsky lower bound ")
+            ("mycielski-bound,m", po::bool_switch(&use_mycielsky_lb),
+                    "Compute initial mycielski lower bound ")
             ("remove-cj", po::bool_switch(&remove_trivial_cj),
                     "Removes some of the literals from the cardinality constraints if possible")
             ("assignment-amo", po::bool_switch(&assignment_encoding_amo),
@@ -92,9 +92,9 @@ Options::Options(int argc, char **argv) : Options() {
             ("clique-explanations", po::bool_switch(&use_clique_explanation_clauses),
                     "Enables learning clique explanation clauses in external propagator for zykov encoding")
             ("myc-explanations", po::bool_switch(&use_mycielsky_explanation_clauses),
-                    "Enables learning mycielsky graph explanation clauses in external propagator for zykov encoding")
+                    "Enables learning mycielski graph explanation clauses in external propagator for zykov encoding")
             ("myc-threshold", po::value<int>(&mycielsky_threshold),
-                    "Calls mycielsky lower bound algorithm if current_k - lb < threshold (default = 1)")
+                    "Calls mycielski lower bound algorithm if current_k - lb < threshold (default = 1)")
             ("dominated-decisions", po::bool_switch(&use_dominated_vertex_decisions),
                     "Enables contracting dominated vertices before other variable decisions in external propagator for zykov encoding")
             ("positive-pruning", po::bool_switch(&enable_positive_pruning),
@@ -154,9 +154,7 @@ Options::Options(int argc, char **argv) : Options() {
     po::notify(vm);
 
     //print help if option is set or no inputfile is given
-    if (vm.count("help") or (not vm.count("inputfile")
-        or (not(zykov_color_default or assignment_default or partial_order_default))
-        )) {
+    if (vm.count("help") or (not vm.count("inputfile"))) {
         std::cout << "USAGE: " << argv[0] << " [options] inputfile --configuration\n"
                   << "where input is a graph in dimacs format.\n";
                   // << "and configuration is one of --zykov-color, --assignment, --partial-order\n";
@@ -172,7 +170,6 @@ Options::Options(int argc, char **argv) : Options() {
         throw std::runtime_error("Input file does not exist.");
     }
     filename = std::filesystem::path(filepath).filename().string();
-
     if ((zykov_color_default and assignment_default) or (zykov_color_default and partial_order_default)
         or (partial_order_default and assignment_default)) {
         throw po::error("Cannot pass two default configuration options at the same time.");
@@ -230,7 +227,7 @@ Options::Options(int argc, char **argv) : Options() {
         encoding = PartialOrderEncoding;
     }
     else {
-        throw po::error("Provide one of the following to specify the configuration:\n--zykov-color, --assignment, --partial-order");
+        //throw po::error("Provide one of the following to specify the configuration:\n--zykov-color, --assignment, --partial-order");
         std::cout <<"WARNING: using custom configuration. Provide one of the following to specify a default configuration:\n--zykov-color, --assignment, --partial-order\n";
     }
 
@@ -315,7 +312,7 @@ Options::Options(int argc, char **argv) : Options() {
         }
         if(not use_clique_explanation_clauses) {
             if(use_mycielsky_explanation_clauses) {
-                throw std::runtime_error("Mycielsky explanations only work with clique explanations");
+                throw std::runtime_error("Mycielski explanations only work with clique explanations");
             }
             if(enable_positive_pruning or enable_negative_pruning) {
                 throw std::runtime_error("Clique based pruning only work with clique explanations");
@@ -330,7 +327,7 @@ Options::Options(int argc, char **argv) : Options() {
 
 
     if(mycielsky_threshold < 0 or prop_clique_limit < 0){
-        throw po::error("mycielsky_threshold or prop_clique_limit can't be negative");
+        throw po::error("mycielski_threshold or prop_clique_limit can't be negative");
     }
 
     if(zykov_coloring_algorithm != None or enable_detailed_backtracking_stats) {
@@ -361,7 +358,7 @@ void Options::print() const {
     std::cout << "c Options : Preprocessing           = " << (not disable_preprocessing ? "True" : "False") << "\n";
     std::cout << "c Options : Graph reduction         = " << (reduce_graph ? "True" : "False") << "\n";
     std::cout << "c Options : Use clique in ordering  = " << (use_clique_in_ordering ? "True" : "False") << "\n";
-    std::cout << "c Options : Use mycielsky bound     = " << (use_mycielsky_lb ? "True" : "False") << "\n";
+    std::cout << "c Options : Use mycielski bound     = " << (use_mycielsky_lb ? "True" : "False") << "\n";
     std::cout << "c Options : Remove trivial cj       = " << (remove_trivial_cj ? "True" : "False") << "\n";
     if(encoding == AssignmentEncoding) {
     std::cout << "c Options : Assignment at-most-one  = " << (assignment_encoding_amo ? "True" : "False") << "\n";
@@ -371,7 +368,7 @@ void Options::print() const {
     }
     if(encoding == ZykovPropagator) {
     std::cout << "c Options : Use clique bounding     = " << (use_clique_explanation_clauses ? "True" : "False") << "\n";
-    std::cout << "c Options : Use mycielsky bounding  = " << (use_mycielsky_explanation_clauses ? "True" : "False") << "\n";
+    std::cout << "c Options : Use mycielski bounding  = " << (use_mycielsky_explanation_clauses ? "True" : "False") << "\n";
     std::cout << "c Options : Use dominated decision  = " << (use_dominated_vertex_decisions ? "True" : "False") << "\n";
     std::cout << "c Options : Use positive pruning    = " << (enable_positive_pruning ? "True" : "False") << "\n";
     std::cout << "c Options : Use negative pruning    = " << (enable_negative_pruning ? "True" : "False") << "\n";
