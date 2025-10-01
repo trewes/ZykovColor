@@ -21,7 +21,7 @@ but any version with the same IPASIR-UP interface should work.
 to build the incremental cardinality constraints with the Totalizer Encoding.
 This is not strictly necessary for ZykovColor,
 but we also support the option to explicitly add at-most-$k$-constraints.
-[Boost](https://www.boost.org/) and ZLIB are also required,
+[Boost](https://www.boost.org/) (Version 1.88.0 or higher) and ZLIB are also required,
 and the path to a binary of [CliSAT](https://github.com/psanse/CliSAT) is needed
 to compute an initial clique in preprocessing.
 Additionally, to compute the fractional chromatic number in the propagator, 
