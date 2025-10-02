@@ -619,7 +619,6 @@ void IncSatGC::preprocessing_initial_coloring() {
         // add empty color class for recovered vertex later on
         heuristic_coloring.emplace_back();
     }
-    notify_heuristic_ub(static_cast<int>(heuristic_coloring.size()));
 
     if (static_cast<int>(heuristic_coloring.size()) < heuristic_bound) {
         //transform and store heuristic coloring in current_best_coloring
@@ -631,6 +630,9 @@ void IncSatGC::preprocessing_initial_coloring() {
         }
         assert(std::count(current_best_coloring.begin(), current_best_coloring.end(), NoColor) == 0);
     }
+    //Notify upper bound of new heuristic
+    notify_heuristic_ub(static_cast<int>(heuristic_coloring.size()));
+
     if(options.verbosity >= Options::Verbose){
         std::cout << "c Dsatur heuristic: computed upper bound of " << heuristic_coloring.size() << "\n";
     }
