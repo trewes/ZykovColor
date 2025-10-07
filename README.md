@@ -28,14 +28,23 @@ Additionally, to compute the fractional chromatic number in the propagator,
 we need to compile and link [exactcolors](https://github.com/heldstephan/exactcolors), which requires either cplex or gurobi.
 The cmake currently uses only gurobi.
 
-Once all dependencies have been compiled, 
-compiling the binary ``ZykovColor`` should be as simple as
+To help with the compilation process and the installation of the dependencies,
+we provide a build script `build.sh`.
+This only requires paths to Gurobi and Boost (version 1.88.0 or higher) and collects the remaining software itself.
+
+```
+export GUROBI_HOME=/path/tp/gurobi
+export BOOST_ROOT=/path/to/boost
+./build.sh
+```
+The resulting executable `ZykovColor` can be found in the folder `cmake-build`.
+
+Alternatively, one can use existing or custom paths to the dependencies:
 ```
 mkdir build && cd build
-cmake .. -DBOOST_ROOT=/path/to/boost -DOPENWBO_ROOT_DIR=/path/to/open-wbo -DCADICAL_ROOT_DIR=/path/to/cadical -DCLISAT_BINARY_PATH=/path/to/clisat/binary -DEXACTCOLORS_ROOT_DIR=/path/to/exactcolors -DGUROBI_HOME=/path/to/gurobi
+cmake .. -DBOOST_ROOT=/path/to/boost -DOPENWBO_ROOT_DIR=/path/to/open-wbo -DCADICAL_ROOT_DIR=/path/to/cadical -DCLISAT_BINARY_PATH=/path/to/clisat/binary -DEXACTCOLORS_ROOT_DIR=/path/to/exactcolors -DGUROBI_HOME=/path/to/gurobi -DCMAKE_BUILD_TYPE=Release
 make
 ```
-Additionally add ``-DCMAKE_BUILD_TYPE=Release`` to compile with optimization flags.
 
 ## Usage
 
@@ -49,6 +58,7 @@ Where ``--configuration`` is one of the following:
 
 They run either ZykovColor, the Assignment encoding, or the Partial Order encoding
 in their default configuration as described in the paper.
+For more custom options, see `Options.cpp`.
 
 ### Reference
 
