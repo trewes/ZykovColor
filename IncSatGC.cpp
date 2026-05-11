@@ -68,6 +68,9 @@ int IncSatGC::run() {
             std::cout << "Result: Chromatic number of " << lower_bound << " was determined in pre-processing.\n";
             stats.end_phase(Statistics::Total);
             write_and_cleanup();
+            if(options.strategy == Options::SingleK) {
+                return (lower_bound <= options.specific_num_colors.value()) ? 1 : 0;
+            }
             return lower_bound;
         }
     }
